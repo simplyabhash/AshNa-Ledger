@@ -408,6 +408,17 @@
   .theme-name{ font-size:14.5px; font-weight:600; color:var(--ink); }
   .theme-desc{ font-size:11.5px; color:var(--muted); margin-top:2px; }
   .theme-check{ font-size:18px; color:var(--teal); flex-shrink:0; width:20px; text-align:center; }
+  .hint-text{ font-size:12px; color:var(--muted); margin-bottom:14px; line-height:1.5; }
+  .cat-manage-list{ max-height:44vh; overflow-y:auto; }
+  .cat-manage-row{
+    display:flex; align-items:center; gap:10px;
+    padding:10px 2px; border-bottom:1px solid var(--line);
+  }
+  .cat-manage-row:last-child{ border-bottom:none; }
+  .cat-manage-name{ flex:1; font-size:14px; color:var(--ink); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .cat-remove-btn{ background:none; border:none; color:var(--danger); font-size:12px; font-weight:600; cursor:pointer; flex-shrink:0; padding:4px 2px; }
+  .add-row{ margin-top:14px; display:flex; gap:8px; }
+  .add-row .input{ flex:1; }
 
   /* ---------- Toast ---------- */
   .toast{
@@ -439,6 +450,7 @@
       <span id="syncStatus">Connecting…</span>
       <button id="syncNowBtn" class="sync-link">Sync now</button>
       <button id="themeBtn" class="sync-link" style="margin-left:auto;">🎨 Theme</button>
+      <button id="categoriesBtn" class="sync-link">🏷️ Categories</button>
     </div>
   </header>
 
@@ -780,6 +792,22 @@
     </div>
   </div>
 
+  <!-- Manage Categories modal -->
+  <div class="modal-backdrop" id="categoriesBackdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Manage Categories</h3>
+        <button class="close-x" id="closeCategoriesModal">&times;</button>
+      </div>
+      <div class="hint-text">Remove categories you don't use, or add new ones below. Changes sync to every device automatically.</div>
+      <div id="categoriesListBox"></div>
+      <div class="add-row">
+        <input type="text" id="newCategoryInput" class="input" placeholder="New category name…">
+        <button class="btn-primary" id="addCategoryBtn" style="width:auto; margin-top:0;">Add</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -787,7 +815,7 @@
   "use strict";
 
   /* ============ CONSTANTS ============ */
-  const CATEGORIES = [
+  const DEFAULT_CATEGORIES = [
     "Grocery","Shopping","Movie/Standup/Events","Outside Food/Restaurants/Home Delivery",
     "Doctor Consultations","Medicines","Health Checkups/Tests/Scans",
     "Household Items (Decor/Furnishings/etc.)","Investments","Electronics","Parlour/Haircut",
@@ -798,7 +826,8 @@
     "Installation/Repairs/Maintenance","Gas Cylinder Refill","Insurance Premium",
     "Plants/Nursery","Car Care/Accessories/Service/Maintenance","Payment to Baba","Other"
   ];
-  const PAYMENT_MODES = ["UPI","Credit Card","Debit Card","Net Banking","Cash","Wallet","Cheque","Other"];
+  let categories = []; // populated from cache/server below — synced across devices via the Categories sheet
+  const PAYMENT_MODES = ["UPI","Credit Card","Debit Card","Net Banking","Cash","Wallet","Cheque","E-NACH","Pluxee/Food Card","Other"];
   const CATEGORY_COLORS = ["#2F6F5E","#3D5A80","#BC6C25","#8E5572","#5B7553","#B23A48","#6C5B7B","#4C6663","#9C6644","#3E6990","#7A5C3E","#556B6E","#98703F","#476A6F","#7C5C5C"];
 
   const CARDS = [
@@ -925,10 +954,66 @@
   document.getElementById('closeThemeModal').addEventListener('click', ()=> document.getElementById('themeBackdrop').classList.remove('open'));
   document.getElementById('themeBackdrop').addEventListener('click', (ev)=>{ if(ev.target.id==='themeBackdrop') ev.currentTarget.classList.remove('open'); });
 
+  /* ============ MANAGE CATEGORIES ============ */
+  function renderCategoriesList(){
+    const listEl = document.getElementById('categoriesListBox');
+    listEl.innerHTML = '<div class="cat-manage-list"></div>';
+    const innerList = listEl.querySelector('.cat-manage-list');
+    categories.forEach(cat=>{
+      const row = document.createElement('div');
+      row.className = 'cat-manage-row';
+      row.innerHTML = `
+        <span class="dot" style="background:${categoryColor(cat)}"></span>
+        <span class="cat-manage-name">${cat}</span>
+        <button class="cat-remove-btn" data-cat="${cat}">Remove</button>
+      `;
+      innerList.appendChild(row);
+    });
+    innerList.querySelectorAll('[data-cat]').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const cat = btn.dataset.cat;
+        const usageCount = expenses.filter(e=>e.category===cat).length;
+        const warning = usageCount > 0
+          ? `${usageCount} existing ${usageCount===1?'entry uses':'entries use'} "${cat}". Removing it only takes it off the picker list — those past entries keep their category as-is. Continue?`
+          : `Remove "${cat}" from the category list?`;
+        if(!confirm(warning)) return;
+        categories = categories.filter(c=>c!==cat);
+        cacheAll();
+        renderCategoriesList();
+        toast('Category removed ✓');
+        syncWrite('setCategories', categories.map(name=>({name})));
+      });
+    });
+  }
+
+  document.getElementById('categoriesBtn').addEventListener('click', ()=>{
+    renderCategoriesList();
+    document.getElementById('categoriesBackdrop').classList.add('open');
+  });
+  document.getElementById('closeCategoriesModal').addEventListener('click', ()=> document.getElementById('categoriesBackdrop').classList.remove('open'));
+  document.getElementById('categoriesBackdrop').addEventListener('click', (ev)=>{ if(ev.target.id==='categoriesBackdrop') ev.currentTarget.classList.remove('open'); });
+
+  document.getElementById('addCategoryBtn').addEventListener('click', ()=>{
+    const input = document.getElementById('newCategoryInput');
+    const name = input.value.trim();
+    if(!name){ toast('Type a category name first'); return; }
+    if(categories.some(c=>c.toLowerCase()===name.toLowerCase())){ toast('That category already exists'); return; }
+    categories.push(name);
+    cacheAll();
+    input.value = '';
+    renderCategoriesList();
+    toast('Category added ✓');
+    syncWrite('setCategories', categories.map(n=>({name:n})));
+  });
+  document.getElementById('newCategoryInput').addEventListener('keydown', (ev)=>{
+    if(ev.key === 'Enter'){ ev.preventDefault(); document.getElementById('addCategoryBtn').click(); }
+  });
+
   const LS_EXPENSES = "ledger_expenses_v1";
   const LS_TEMPLATES = "ledger_templates_v1";
   const LS_POSTED = "ledger_posted_v1";
   const LS_QUEUE = "ledger_pending_queue_v1";
+  const LS_CATEGORIES = "ledger_categories_v1";
 
   const API_URL = "https://script.google.com/macros/s/AKfycbw4KEFO7NL_8LfSls7FRN0bE5TyUf231gZ8PDiy3DGjAlY1u5NUmd-uNuR3XMjsiC_imA/exec";
 
@@ -955,11 +1040,15 @@
   if(templates === null){ templates = DEFAULT_TEMPLATES; }
   let posted = loadCache(LS_POSTED, []); // [{templateId, monthKey}]
   let pendingQueue = loadCache(LS_QUEUE, []); // [{id, action, payload}]
+  categories = loadCache(LS_CATEGORIES, null);
+  let categoriesNeedBootstrap = false;
+  if(categories === null || categories.length === 0){ categories = DEFAULT_CATEGORIES.slice(); categoriesNeedBootstrap = true; }
 
   function cacheAll(){
     saveCache(LS_EXPENSES, expenses);
     saveCache(LS_TEMPLATES, templates);
     saveCache(LS_POSTED, posted);
+    saveCache(LS_CATEGORIES, categories);
   }
   function saveQueue(){ saveCache(LS_QUEUE, pendingQueue); }
 
@@ -1013,6 +1102,14 @@
       templates = (data.templates||[]).filter(t=>t.id).map(normalizeTemplate);
       if(templates.length === 0) templates = DEFAULT_TEMPLATES.map(t=>({...t}));
       posted = (data.posted||[]).filter(p=>p.templateId).map(normalizePosted);
+      const serverCategories = (data.categories||[]).map(c=>c.name).filter(Boolean);
+      if(serverCategories.length > 0){
+        categories = serverCategories;
+      } else if(categoriesNeedBootstrap){
+        // First time ever — push the default category list up to the (empty) Categories sheet
+        categoriesNeedBootstrap = false;
+        syncWrite('setCategories', categories.map(name=>({name})));
+      }
       cacheAll();
       setSyncStatus('ok', 'Synced just now');
       refreshActiveView();
@@ -1091,7 +1188,7 @@
     return d.toLocaleDateString('en-IN', {month:'long', year:'numeric'});
   }
   function categoryColor(cat){
-    let idx = CATEGORIES.indexOf(cat);
+    let idx = categories.indexOf(cat);
     if(idx === -1) idx = Math.abs(cat.split('').reduce((a,c)=>a+c.charCodeAt(0),0));
     return CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
   }
@@ -1106,8 +1203,10 @@
   }
 
   /* ============ SEARCHABLE COMBO ============ */
-  function initCombo(inputEl, listEl, options, onSelect){
+  function initCombo(inputEl, listEl, optionsOrGetter, onSelect){
+    function getOptions(){ return typeof optionsOrGetter === 'function' ? optionsOrGetter() : optionsOrGetter; }
     function render(filter){
+      const options = getOptions();
       const f = (filter||'').trim().toLowerCase();
       const matches = f ? options.filter(o => o.toLowerCase().includes(f)) : options.slice();
       listEl.innerHTML = '';
@@ -1163,9 +1262,9 @@
   wireCardVisibility('t-mode', 't-card-field');
   wireCardVisibility('e-mode', 'e-card-field');
 
-  initCombo(document.getElementById('f-category'), document.getElementById('f-category-list'), CATEGORIES);
-  initCombo(document.getElementById('t-category'), document.getElementById('t-category-list'), CATEGORIES);
-  initCombo(document.getElementById('e-category'), document.getElementById('e-category-list'), CATEGORIES);
+  initCombo(document.getElementById('f-category'), document.getElementById('f-category-list'), ()=>categories);
+  initCombo(document.getElementById('t-category'), document.getElementById('t-category-list'), ()=>categories);
+  initCombo(document.getElementById('e-category'), document.getElementById('e-category-list'), ()=>categories);
 
   document.getElementById('f-date').value = todayStr();
 
@@ -1923,4 +2022,3 @@
 </script>
 </body>
 </html>
-
