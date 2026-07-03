@@ -519,10 +519,16 @@
     <!-- RECURRING VIEW -->
     <section class="view" id="view-recurring">
       <div class="card">
-        <h2 class="section-title" id="recMonthTitle">Recurring bills — this month</h2>
-        <div class="field" style="margin-bottom:14px;">
-          <label>Post these entries with date</label>
-          <input type="date" id="recPostDate">
+        <h2 class="section-title">Recurring Bills</h2>
+        <div class="row-2" style="margin-bottom:14px;">
+          <div class="field" style="margin-bottom:0;">
+            <label>Reviewing month</label>
+            <select id="recReviewMonth"></select>
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label>Post with date</label>
+            <input type="date" id="recPostDate">
+          </div>
         </div>
         <div class="select-all-row" id="recSelectAllRow" style="display:none;">
           <label class="select-all-label">
@@ -1381,9 +1387,30 @@
   /* ============ RECURRING ============ */
   function currentMonthKey(){ return todayStr().slice(0,7); }
 
+  function reviewMonthRange(){
+    // 12 months back through 3 months forward from today, so old missed bills and future planning both work
+    const now = new Date();
+    const months = [];
+    for(let i=-12; i<=3; i++){
+      const d = new Date(now.getFullYear(), now.getMonth()+i, 1);
+      months.push(d.toISOString().slice(0,7));
+    }
+    return months;
+  }
+
+  function populateReviewMonthSelect(){
+    const sel = document.getElementById('recReviewMonth');
+    const prev = sel.value;
+    const months = reviewMonthRange();
+    sel.innerHTML = months.map(mk=>'<option value="'+mk+'">'+fmtMonthLabel(mk)+'</option>').join('');
+    if(prev && months.includes(prev)) sel.value = prev;
+    else sel.value = currentMonthKey();
+  }
+  document.getElementById('recReviewMonth').addEventListener('change', renderRecurring);
+
   function renderRecurring(){
-    const mk = currentMonthKey();
-    document.getElementById('recMonthTitle').textContent = 'Recurring bills — ' + fmtMonthLabel(mk);
+    populateReviewMonthSelect();
+    const mk = document.getElementById('recReviewMonth').value;
     const postDateEl = document.getElementById('recPostDate');
     if(!postDateEl.value) postDateEl.value = todayStr();
     const postedIds = new Set(posted.filter(p=>p.monthKey===mk).map(p=>p.templateId));
@@ -1455,7 +1482,7 @@
   });
 
   document.getElementById('approveRecBtn').addEventListener('click', ()=>{
-    const mk = currentMonthKey();
+    const mk = document.getElementById('recReviewMonth').value;
     const postDate = document.getElementById('recPostDate').value || todayStr();
     const checks = document.querySelectorAll('#recPendingList .rec-check:checked');
     if(checks.length === 0){ toast('Select at least one bill'); return; }
