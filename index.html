@@ -1923,6 +1923,7 @@
       CARDS.forEach(c=>{
         const { cycleStart, cycleEnd, dueDate } = currentCycleFor(c.cycleDay, c.dueOffsetDays, today);
         const inRange = cardExpenses.filter(e=>{
+          if(e.card !== c.id) return false;
           const d = new Date(e.date+'T00:00:00');
           return d >= cycleStart && d < cycleEnd;
         });
