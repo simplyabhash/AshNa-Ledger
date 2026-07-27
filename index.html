@@ -305,6 +305,12 @@
   }
   .filter-panel{ display:none; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:12px; }
   .filter-panel.open{ display:grid; }
+  .history-summary{
+    display:flex; justify-content:space-between; align-items:center;
+    background:var(--teal-tint); border-radius:10px; padding:9px 14px;
+    font-size:12.5px; color:var(--teal-dark); font-weight:600; margin-bottom:12px;
+  }
+  .history-summary .hs-total{ font-family:'IBM Plex Mono', monospace; font-size:14px; }
   .entry{
     background:var(--surface);
     border:1px solid var(--line);
@@ -378,7 +384,9 @@
   .stat-val.abhash{ color:var(--abhash); }
   .stat-val.meghna{ color:var(--meghna); }
   .chart-wrap{ position:relative; height:220px; margin-top:6px; }
-  .legend-line{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); padding:4px 0; }
+  .legend-line{ display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft); padding:4px 0; border-bottom:1px solid var(--line); }
+  .legend-line:last-child{ border-bottom:none; }
+  .cat-legend-scroll{ max-height:220px; overflow-y:auto; border:1px solid var(--line); border-radius:10px; padding:2px 10px; }
   .legend-line .lv{ margin-left:auto; font-family:'IBM Plex Mono',monospace; font-weight:600; }
 
   /* ---------- Bottom nav ---------- */
@@ -659,6 +667,7 @@
           </select>
         </div>
       </div>
+      <div id="historySummary" class="history-summary"></div>
       <div id="historyList"></div>
     </section>
 
@@ -701,7 +710,7 @@
       <div class="card">
         <h2 class="section-title">By category</h2>
         <div class="chart-wrap"><canvas id="chartCategory"></canvas></div>
-        <div id="catLegend" style="margin-top:10px;"></div>
+        <div id="catLegend" class="cat-legend-scroll" style="margin-top:10px;"></div>
       </div>
       <div class="card">
         <h2 class="section-title">By payment mode</h2>
@@ -1871,6 +1880,10 @@
 
     document.getElementById('entryCount').textContent = expenses.length + ' entries';
 
+    const summaryEl = document.getElementById('historySummary');
+    const filteredTotal = list.reduce((s,e)=>s+e.amount,0);
+    summaryEl.innerHTML = `<span>${list.length} ${list.length===1?'entry':'entries'} shown</span><span class="hs-total">${fmtMoney(filteredTotal)}</span>`;
+
     const el = document.getElementById('historyList');
     if(list.length === 0){
       el.innerHTML = '<div class="empty-state"><div class="big">Nothing here yet</div>Log a spend or adjust your filters.</div>';
@@ -2064,7 +2077,7 @@
 
     const legendEl = document.getElementById('catLegend');
     legendEl.innerHTML = '';
-    catEntries.slice(0,8).forEach(([cat,val])=>{
+    catEntries.forEach(([cat,val])=>{
       const d = document.createElement('div');
       d.className = 'legend-line';
       d.innerHTML = `<span class="dot" style="background:${categoryColor(cat)}"></span><span>${cat}</span><span class="lv">${fmtMoney(val)}</span>`;
@@ -2226,9 +2239,11 @@
         });
       });
       rows.sort((a,b)=>{
-        const dueA = a.statements.length ? a.statements[0].dueDate : new Date(8640000000000000);
-        const dueB = b.statements.length ? b.statements[0].dueDate : new Date(8640000000000000);
-        return dueA - dueB;
+        const aOwes = a.outstanding > 0.5, bOwes = b.outstanding > 0.5;
+        if(aOwes && bOwes) return b.outstanding - a.outstanding;
+        if(aOwes) return -1;
+        if(bOwes) return 1;
+        return b.thisCycleSoFar - a.thisCycleSoFar;
       });
     } else {
       let rangeStart=null, rangeEnd=null; // rangeEnd exclusive
