@@ -255,7 +255,33 @@
   .card-row-due{ font-size:11.5px; margin-top:3px; font-weight:600; }
   .card-row-due.soon{ color:var(--danger); }
   .card-row-due.normal{ color:var(--teal-dark); }
+  .card-row-due.none{ color:var(--muted); font-weight:500; font-style:italic; }
   .card-row-entries{ font-size:11px; color:var(--muted); margin-top:2px; }
+
+  .outstanding-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding:10px 12px; background:var(--danger-tint); border-radius:10px; margin-bottom:8px;
+  }
+  .outstanding-row.zero{ background:var(--teal-tint); }
+  .outstanding-label{ font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:0.4px; color:var(--danger); }
+  .outstanding-row.zero .outstanding-label{ color:var(--teal-dark); }
+  .outstanding-val{ font-size:19px; font-weight:700; color:var(--danger); }
+  .outstanding-val.zero{ color:var(--teal-dark); }
+  .stacked-note{
+    font-size:11px; color:var(--danger); background:var(--danger-tint); border-radius:8px;
+    padding:7px 10px; margin-bottom:10px; line-height:1.5;
+  }
+  .cycle-so-far-row{
+    display:flex; justify-content:space-between; align-items:baseline;
+    padding:6px 12px; margin-bottom:6px; font-size:12px;
+  }
+  .cycle-so-far-label{ color:var(--muted); }
+  .cycle-so-far-val{ font-weight:600; color:var(--ink-soft); }
+  .repay-btn{
+    width:100%; background:var(--teal); color:var(--on-accent); border:none; border-radius:10px;
+    padding:11px; font-size:13.5px; font-weight:700; text-align:center; cursor:pointer; margin-top:6px;
+  }
+  .repay-btn.settled{ background:var(--line); color:var(--muted); cursor:default; }
   .btn-primary:active{ background:var(--teal-dark); }
   .btn-secondary{
     width:100%;
@@ -473,9 +499,9 @@
               </div>
             </div>
           </div>
-          <div class="field">
+          <div class="field" id="f-category-field">
             <label>Category</label>
-            <input type="text" id="f-category" placeholder="Type to search…" autocomplete="off" required>
+            <input type="text" id="f-category" placeholder="Type to search…" autocomplete="off">
             <div class="combo-list" id="f-category-list"></div>
           </div>
           <div class="row-2">
@@ -492,7 +518,7 @@
             </div>
           </div>
           <div class="field card-select-field" id="f-card-field" style="display:none;">
-            <label>Card</label>
+            <label id="f-card-field-label">Card</label>
             <select id="f-card"></select>
           </div>
           <div class="field">
@@ -503,6 +529,12 @@
             <label class="refund-check-label">
               <input type="checkbox" id="f-is-refund">
               <span>This is a refund</span>
+            </label>
+          </div>
+          <div class="refund-toggle-row" id="f-repayment-row" style="margin-top:-6px;">
+            <label class="refund-check-label">
+              <input type="checkbox" id="f-is-repayment">
+              <span>This is a credit card re-payment</span>
             </label>
           </div>
           <div class="field refund-link-field" id="refundLinkField" style="display:none;">
@@ -706,7 +738,7 @@
         </div>
       </div>
       <div class="stat-card" style="margin-bottom:14px;">
-        <div class="stat-label">Total across all cards</div>
+        <div class="stat-label" id="cardsGrandTotalLabel">Total outstanding across all cards</div>
         <div class="stat-val num" id="cardsGrandTotal">₹0</div>
       </div>
       <div id="cardsList"></div>
@@ -779,7 +811,7 @@
           <div class="amount-prefix"><span class="cur">₹</span><input type="number" id="e-amount" step="0.01" min="0"></div>
         </div>
       </div>
-      <div class="field">
+      <div class="field" id="e-category-field">
         <label>Category</label>
         <input type="text" id="e-category" autocomplete="off">
         <div class="combo-list" id="e-category-list"></div>
@@ -798,12 +830,18 @@
         </div>
       </div>
       <div class="field card-select-field" id="e-card-field" style="display:none;">
-        <label>Card</label>
+        <label id="e-card-field-label">Card</label>
         <select id="e-card"></select>
       </div>
       <div class="field">
         <label>Remarks</label>
         <textarea id="e-remarks"></textarea>
+      </div>
+      <div class="refund-toggle-row" id="e-repayment-row">
+        <label class="refund-check-label">
+          <input type="checkbox" id="e-is-repayment">
+          <span>This is a credit card re-payment (converts this entry out of your expense totals)</span>
+        </label>
       </div>
       <button class="btn-primary" id="saveEditBtn">Save changes</button>
       <button class="btn-secondary" id="deleteEntryBtn" style="margin-top:10px; color:var(--danger); border-color:var(--danger-tint);">Delete entry</button>
@@ -834,6 +872,38 @@
         <input type="text" id="newCategoryInput" class="input" placeholder="New category name…">
         <button class="btn-primary" id="addCategoryBtn" style="width:auto; margin-top:0;">Add</button>
       </div>
+    </div>
+  </div>
+
+  <!-- Record a re-payment modal -->
+  <div class="modal-backdrop" id="repaymentBackdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <h3 id="repaymentModalTitle">Record a re-payment</h3>
+        <button class="close-x" id="closeRepaymentModal">&times;</button>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label>Date</label>
+          <input type="date" id="rp-date">
+        </div>
+        <div class="field">
+          <label>Amount</label>
+          <div class="amount-prefix"><span class="cur">₹</span><input type="number" id="rp-amount" step="0.01" min="0"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>Paid by</label>
+        <select id="rp-paidby">
+          <option value="Abhash">Abhash</option>
+          <option value="Meghna">Meghna</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Remarks (optional)</label>
+        <textarea id="rp-remarks" placeholder="e.g. Paid in full via net banking"></textarea>
+      </div>
+      <button class="btn-primary" id="saveRepaymentBtn">Save re-payment</button>
     </div>
   </div>
 
@@ -1045,6 +1115,7 @@
   const LS_QUEUE = "ledger_pending_queue_v1";
   const LS_CATEGORIES = "ledger_categories_v1";
   const LS_CARDS = "ledger_cards_v1";
+  const LS_CARDPAYMENTS = "ledger_cardpayments_v1";
 
   const API_URL = "https://script.google.com/macros/s/AKfycbw4KEFO7NL_8LfSls7FRN0bE5TyUf231gZ8PDiy3DGjAlY1u5NUmd-uNuR3XMjsiC_imA/exec";
 
@@ -1077,6 +1148,7 @@
   cards = loadCache(LS_CARDS, null);
   let cardsNeedBootstrap = false;
   if(cards === null || cards.length === 0){ cards = DEFAULT_CARDS.map(c=>({...c})); cardsNeedBootstrap = true; }
+  let cardPayments = loadCache(LS_CARDPAYMENTS, []);
 
   function cacheAll(){
     saveCache(LS_EXPENSES, expenses);
@@ -1084,6 +1156,7 @@
     saveCache(LS_POSTED, posted);
     saveCache(LS_CATEGORIES, categories);
     saveCache(LS_CARDS, cards);
+    saveCache(LS_CARDPAYMENTS, cardPayments);
   }
   function saveQueue(){ saveCache(LS_QUEUE, pendingQueue); }
 
@@ -1128,6 +1201,9 @@
   function normalizeCard(c){
     return { id:String(c.id), name:c.name, cycleDay: parseInt(c.cycleDay,10)||1, dueOffsetDays: parseInt(c.dueOffsetDays,10)||18 };
   }
+  function normalizeCardPayment(p){
+    return { id:String(p.id), cardId:String(p.cardId), date:String(p.date).slice(0,10), amount:parseFloat(p.amount)||0, paidBy:p.paidBy||'', remarks:p.remarks||'', createdAt:Number(p.createdAt)||Date.now() };
+  }
 
   let isSyncing = false;
   async function refreshFromServer(silent){
@@ -1155,6 +1231,7 @@
         cardsNeedBootstrap = false;
         syncWrite('setCards', cards);
       }
+      cardPayments = (data.cardPayments||[]).filter(p=>p.id).map(normalizeCardPayment);
       refreshAllCardSelects();
       cacheAll();
       setSyncStatus('ok', 'Synced just now');
@@ -1311,9 +1388,25 @@
     modeSel.addEventListener('change', update);
     update();
   }
-  wireCardVisibility('f-mode', 'f-card-field');
+  function wireCardVisibilityWithRepayment(prefix){
+    const modeSel = document.getElementById(prefix+'-mode');
+    const cardField = document.getElementById(prefix+'-card-field');
+    const repaymentCheck = document.getElementById(prefix+'-is-repayment');
+    const categoryField = document.getElementById(prefix+'-category-field');
+    const cardLabel = document.getElementById(prefix+'-card-field-label');
+    function update(){
+      const isRepayment = repaymentCheck && repaymentCheck.checked;
+      cardField.style.display = (modeSel.value === 'Credit Card' || isRepayment) ? 'block' : 'none';
+      if(cardLabel) cardLabel.textContent = isRepayment ? 'Which card is this re-payment for?' : 'Card';
+      if(categoryField) categoryField.style.display = isRepayment ? 'none' : 'block';
+    }
+    modeSel.addEventListener('change', update);
+    if(repaymentCheck) repaymentCheck.addEventListener('change', update);
+    update();
+  }
+  wireCardVisibilityWithRepayment('f');
   wireCardVisibility('t-mode', 't-card-field');
-  wireCardVisibility('e-mode', 'e-card-field');
+  wireCardVisibilityWithRepayment('e');
 
   initCombo(document.getElementById('f-category'), document.getElementById('f-category-list'), ()=>categories);
   initCombo(document.getElementById('t-category'), document.getElementById('t-category-list'), ()=>categories);
@@ -1344,6 +1437,8 @@
     const linkField = document.getElementById('refundLinkField');
     const submitBtn = document.getElementById('addSubmitBtn');
     if(this.checked){
+      document.getElementById('f-is-repayment').checked = false;
+      document.getElementById('f-is-repayment').dispatchEvent(new Event('change'));
       linkField.style.display = 'block';
       submitBtn.textContent = 'Add refund';
       submitBtn.style.background = 'var(--danger)';
@@ -1354,6 +1449,19 @@
       selectedRefundOfId = '';
       document.getElementById('f-refund-search').value = '';
       document.getElementById('refundSelectedSummary').style.display = 'none';
+    }
+  });
+
+  document.getElementById('f-is-repayment').addEventListener('change', function(){
+    const submitBtn = document.getElementById('addSubmitBtn');
+    if(this.checked){
+      document.getElementById('f-is-refund').checked = false;
+      document.getElementById('f-is-refund').dispatchEvent(new Event('change'));
+      submitBtn.textContent = 'Record re-payment';
+      submitBtn.style.background = 'var(--teal-dark)';
+    } else {
+      submitBtn.textContent = 'Add entry';
+      submitBtn.style.background = '';
     }
   });
 
@@ -1407,29 +1515,57 @@
     ev.preventDefault();
     const date = document.getElementById('f-date').value || todayStr();
     const rawAmount = parseFloat(document.getElementById('f-amount').value);
-    const category = document.getElementById('f-category').value.trim();
     const paidBy = document.getElementById('f-paidby').value;
     const mode = document.getElementById('f-mode').value;
-    const card = mode === 'Credit Card' ? document.getElementById('f-card').value : '';
     const remarks = document.getElementById('f-remarks').value.trim();
     const isRefund = document.getElementById('f-is-refund').checked;
-    if(!category || isNaN(rawAmount) || rawAmount <= 0){ toast('Please fill amount and category'); return; }
+    const isRepayment = document.getElementById('f-is-repayment').checked;
+
+    if(isNaN(rawAmount) || rawAmount <= 0){ toast('Please enter an amount'); return; }
+
+    if(isRepayment){
+      const cardId = document.getElementById('f-card').value;
+      if(!cardId){ toast('Pick which card this re-payment is for'); return; }
+      const payment = { id:uid(), cardId, date, amount:Math.abs(rawAmount), paidBy, remarks, createdAt: Date.now() };
+      cardPayments.push(payment);
+      cacheAll();
+      toast('Re-payment recorded ✓');
+      resetAddForm();
+      syncWrite('addCardPayment', payment);
+      return;
+    }
+
+    const category = document.getElementById('f-category').value.trim();
+    if(!category){ toast('Please fill amount and category'); return; }
+    const card = mode === 'Credit Card' ? document.getElementById('f-card').value : '';
+
+    // Gentle, non-blocking nudge: looks like a card bill payment logged the old way
+    if(!isRefund && mode !== 'Credit Card' && category.toLowerCase().includes('credit card')){
+      toast('Tip: for credit card bill payments, try the "credit card re-payment" checkbox below instead');
+    }
+
     const amount = isRefund ? -Math.abs(rawAmount) : Math.abs(rawAmount);
     const entry = {id:uid(), date, amount, category, paidBy, mode, remarks, source:'manual', createdAt: Date.now(),
       isRefund, refundOf: isRefund ? selectedRefundOfId : '', card};
     expenses.push(entry);
     cacheAll();
     toast(isRefund ? 'Refund recorded ✓' : 'Entry added ✓');
+    resetAddForm();
+    syncWrite('addExpense', entry);
+  });
+
+  function resetAddForm(){
     document.getElementById('addForm').reset();
     document.getElementById('f-date').value = todayStr();
     document.getElementById('f-card-field').style.display = 'none';
+    document.getElementById('f-card-field-label').textContent = 'Card';
+    document.getElementById('f-category-field').style.display = 'block';
     document.getElementById('refundLinkField').style.display = 'none';
     document.getElementById('refundSelectedSummary').style.display = 'none';
     document.getElementById('addSubmitBtn').textContent = 'Add entry';
     document.getElementById('addSubmitBtn').style.background = '';
     selectedRefundOfId = '';
-    syncWrite('addExpense', entry);
-  });
+  }
 
   /* ============ RECURRING ============ */
   function currentMonthKey(){ return todayStr().slice(0,7); }
@@ -1786,10 +1922,13 @@
     document.getElementById('e-category').value = e.category;
     document.getElementById('e-paidby').value = e.paidBy;
     document.getElementById('e-mode').value = e.mode;
+    document.getElementById('e-mode').dispatchEvent(new Event('change'));
     document.getElementById('e-card').value = e.card || '';
-    document.getElementById('e-card-field').style.display = (e.mode === 'Credit Card') ? 'block' : 'none';
+    document.getElementById('e-is-repayment').checked = false;
+    document.getElementById('e-is-repayment').dispatchEvent(new Event('change'));
     document.getElementById('e-remarks').value = e.remarks || '';
     document.getElementById('editRefundNotice').style.display = e.isRefund ? 'block' : 'none';
+    document.getElementById('e-repayment-row').style.display = e.isRefund ? 'none' : 'block';
     document.getElementById('editBackdrop').classList.add('open');
   }
   document.getElementById('closeModal').addEventListener('click', ()=> document.getElementById('editBackdrop').classList.remove('open'));
@@ -1798,13 +1937,39 @@
   document.getElementById('saveEditBtn').addEventListener('click', ()=>{
     const e = expenses.find(x=>x.id===editingId);
     if(!e) return;
+
+    if(document.getElementById('e-is-repayment').checked){
+      const cardId = document.getElementById('e-card').value;
+      if(!cardId){ toast('Pick which card this re-payment is for'); return; }
+      const enteredAmount = parseFloat(document.getElementById('e-amount').value);
+      const payment = {
+        id: uid(), cardId,
+        date: document.getElementById('e-date').value || e.date,
+        amount: !isNaN(enteredAmount) ? Math.abs(enteredAmount) : Math.abs(e.amount),
+        paidBy: document.getElementById('e-paidby').value,
+        remarks: document.getElementById('e-remarks').value.trim(),
+        createdAt: Date.now()
+      };
+      expenses = expenses.filter(x=>x.id!==editingId);
+      cardPayments.push(payment);
+      cacheAll();
+      document.getElementById('editBackdrop').classList.remove('open');
+      toast('Converted to a card re-payment ✓');
+      renderHistory(); renderDashboard();
+      (async ()=>{
+        await syncWrite('deleteExpense', {id: editingId});
+        await syncWrite('addCardPayment', payment);
+      })();
+      return;
+    }
+
     e.date = document.getElementById('e-date').value || e.date;
     const enteredAmount = parseFloat(document.getElementById('e-amount').value);
     if(!isNaN(enteredAmount)){ e.amount = e.isRefund ? -Math.abs(enteredAmount) : Math.abs(enteredAmount); }
     e.category = document.getElementById('e-category').value.trim() || e.category;
     e.paidBy = document.getElementById('e-paidby').value;
     e.mode = document.getElementById('e-mode').value;
-    e.card = e.mode === 'Credit Card' ? document.getElementById('e-card').value : '';
+    e.card = (e.mode === 'Credit Card') ? document.getElementById('e-card').value : '';
     e.remarks = document.getElementById('e-remarks').value.trim();
     cacheAll();
     document.getElementById('editBackdrop').classList.remove('open');
@@ -1994,6 +2159,41 @@
   function fmtFullDate(d){ return d.toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}); }
   function dateOnly(d){ return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
+  // Every cycle before the current (open) one, oldest first — used to attribute the running Outstanding total to specific bills
+  function closedCyclesForCard(card, today, lookback){
+    lookback = lookback || 24;
+    const cur = currentCycleFor(card.cycleDay, card.dueOffsetDays, today);
+    const list = [];
+    let cycleEnd = cur.cycleStart;
+    for(let i=0; i<lookback; i++){
+      const cycleStart = new Date(cycleEnd.getFullYear(), cycleEnd.getMonth()-1, card.cycleDay);
+      const dueDate = new Date(cycleEnd.getFullYear(), cycleEnd.getMonth(), cycleEnd.getDate() + card.dueOffsetDays);
+      list.push({ cycleStart, cycleEnd, dueDate });
+      cycleEnd = cycleStart;
+    }
+    return list.reverse(); // ascending: oldest first
+  }
+
+  // Applies all-time payments to closed cycles oldest-first (like how a real card statement clears older dues first),
+  // to work out which specific past bills are still unpaid and by how much.
+  function computeCardOutstanding(card, cardExpensesForCard, cardPaymentsForCard, today){
+    const closed = closedCyclesForCard(card, today);
+    let remainingPayment = cardPaymentsForCard.reduce((s,p)=>s+p.amount,0);
+    const statements = [];
+    closed.forEach(cyc=>{
+      const billed = cardExpensesForCard.filter(e=>{
+        const d = new Date(e.date+'T00:00:00');
+        return d >= cyc.cycleStart && d < cyc.cycleEnd;
+      }).reduce((s,e)=>s+e.amount,0);
+      let unpaid = billed - remainingPayment;
+      if(unpaid < 0){ remainingPayment = -unpaid; unpaid = 0; }
+      else { remainingPayment = 0; }
+      if(unpaid > 0.5){ statements.push({ ...cyc, billed, unpaid }); }
+    });
+    const outstanding = statements.reduce((s,st)=>s+st.unpaid,0);
+    return { statements, outstanding };
+  }
+
   document.getElementById('cardsScope').addEventListener('change', function(){
     document.getElementById('cardsCustomRange').style.display = (this.value === 'custom') ? 'grid' : 'none';
     renderCardsTab();
@@ -2011,21 +2211,24 @@
 
     if(scope === 'cycle'){
       cards.forEach(c=>{
-        const { cycleStart, cycleEnd, dueDate } = currentCycleFor(c.cycleDay, c.dueOffsetDays, today);
-        const inRange = cardExpenses.filter(e=>{
-          if(e.card !== c.id) return false;
+        const { cycleStart, cycleEnd } = currentCycleFor(c.cycleDay, c.dueOffsetDays, today);
+        const cardExpensesForCard = cardExpenses.filter(e=>e.card===c.id);
+        const cardPaymentsForCard = cardPayments.filter(p=>p.cardId===c.id);
+        const { statements, outstanding } = computeCardOutstanding(c, cardExpensesForCard, cardPaymentsForCard, today);
+        const thisCycleSoFar = cardExpensesForCard.filter(e=>{
           const d = new Date(e.date+'T00:00:00');
           return d >= cycleStart && d < cycleEnd;
-        });
-        const total = inRange.reduce((s,e)=>s+e.amount,0);
-        grandTotal += total;
-        const daysToDue = Math.round((dateOnly(dueDate) - dateOnly(today)) / 86400000);
+        }).reduce((s,e)=>s+e.amount,0);
+        grandTotal += outstanding;
         rows.push({
-          name: c.name, total, count: inRange.length, placeholder: !!c.placeholder,
-          cycleLabel: fmtShortDate(cycleStart) + ' – ' + fmtShortDate(new Date(cycleEnd.getTime()-86400000)),
-          dueLabel: 'Due ' + fmtFullDate(dueDate) + (daysToDue>=0 ? ' (in ' + daysToDue + 'd)' : ' (' + Math.abs(daysToDue) + 'd overdue)'),
-          dueSoon: daysToDue <= 5
+          name: c.name, cardId: c.id, outstanding, statements, thisCycleSoFar, placeholder: !!c.placeholder,
+          cycleLabel: fmtShortDate(cycleStart) + ' – ' + fmtShortDate(new Date(cycleEnd.getTime()-86400000))
         });
+      });
+      rows.sort((a,b)=>{
+        const dueA = a.statements.length ? a.statements[0].dueDate : new Date(8640000000000000);
+        const dueB = b.statements.length ? b.statements[0].dueDate : new Date(8640000000000000);
+        return dueA - dueB;
       });
     } else {
       let rangeStart=null, rangeEnd=null; // rangeEnd exclusive
@@ -2069,21 +2272,63 @@
       rows.sort((a,b)=> b.total - a.total);
     }
 
-    if(scope === 'cycle'){
-      rows.sort((a,b)=> {
-        const ca = cards.find(c=>c.name===a.name), cb = cards.find(c=>c.name===b.name);
-        const da = currentCycleFor(ca.cycleDay, ca.dueOffsetDays, today).dueDate;
-        const db = currentCycleFor(cb.cycleDay, cb.dueOffsetDays, today).dueDate;
-        return da - db;
-      });
-    }
-
+    document.getElementById('cardsGrandTotalLabel').textContent = (scope === 'cycle') ? 'Total outstanding across all cards' : 'Total across all cards';
     document.getElementById('cardsGrandTotal').textContent = fmtMoney(grandTotal);
     renderCardManageList();
 
     const listEl = document.getElementById('cardsList');
     listEl.innerHTML = '';
-    const visibleRows = rows.filter(r => r.count > 0 || scope === 'cycle');
+
+    if(scope === 'cycle'){
+      if(rows.length === 0){
+        listEl.innerHTML = '<div class="empty-state"><div class="big">No cards yet</div>Add one below to start tracking.</div>';
+        return;
+      }
+      rows.forEach(r=>{
+        const div = document.createElement('div');
+        div.className = 'card-row';
+        const isZero = r.outstanding < 0.5;
+        let dueLine = '<div class="card-row-due none">No unpaid bill right now</div>';
+        let stackNote = '';
+        if(r.statements.length === 1){
+          const st = r.statements[0];
+          const daysToDue = Math.round((dateOnly(st.dueDate) - dateOnly(today)) / 86400000);
+          dueLine = '<div class="card-row-due '+(daysToDue<=5?'soon':'normal')+'">Due ' + fmtFullDate(st.dueDate) + (daysToDue>=0 ? ' (in ' + daysToDue + 'd)' : ' (' + Math.abs(daysToDue) + 'd overdue)') + '</div>';
+        } else if(r.statements.length > 1){
+          const oldest = r.statements[0];
+          const daysToDue = Math.round((dateOnly(oldest.dueDate) - dateOnly(today)) / 86400000);
+          dueLine = '<div class="card-row-due soon">Oldest due ' + fmtFullDate(oldest.dueDate) + (daysToDue>=0 ? ' (in ' + daysToDue + 'd)' : ' (' + Math.abs(daysToDue) + 'd overdue)') + '</div>';
+          stackNote = '<div class="stacked-note">' + r.statements.length + ' unpaid bills — ' +
+            r.statements.map(st=>{
+              const d = Math.round((dateOnly(st.dueDate) - dateOnly(today)) / 86400000);
+              return fmtShortDate(st.cycleStart) + ' cycle: ' + fmtMoney(st.unpaid) + (d>=0 ? ' (due in '+d+'d)' : ' ('+Math.abs(d)+'d overdue)');
+            }).join(', ') + '</div>';
+        }
+        div.innerHTML = `
+          <div class="card-row-name${r.placeholder?' placeholder-card':''}">${r.name}</div>
+          <div class="outstanding-row${isZero?' zero':''}">
+            <span class="outstanding-label">Outstanding</span>
+            <span class="outstanding-val num${isZero?' zero':''}">${fmtMoney(r.outstanding)}</span>
+          </div>
+          ${dueLine}
+          ${stackNote}
+          <div class="cycle-so-far-row">
+            <span class="cycle-so-far-label">This cycle so far (not yet billed)</span>
+            <span class="cycle-so-far-val num">${fmtMoney(r.thisCycleSoFar)}</span>
+          </div>
+          <div class="card-row-meta">Cycle: ${r.cycleLabel}</div>
+          <button class="repay-btn${isZero?' settled':''}" data-repay="${r.cardId}">${isZero ? 'Nothing to pay' : 'Record a re-payment'}</button>
+        `;
+        listEl.appendChild(div);
+      });
+      listEl.querySelectorAll('[data-repay]').forEach(btn=>{
+        if(btn.classList.contains('settled')) return;
+        btn.addEventListener('click', ()=> openRepaymentModal(btn.dataset.repay));
+      });
+      return;
+    }
+
+    const visibleRows = rows.filter(r => r.count > 0);
     if(visibleRows.length === 0){
       listEl.innerHTML = '<div class="empty-state"><div class="big">No card spends yet</div>Log a Credit Card expense to see it here.</div>';
       return;
@@ -2096,13 +2341,47 @@
           <div class="card-row-name${r.placeholder?' placeholder-card':''}">${r.name}</div>
           <div class="card-row-total num">${fmtMoney(r.total)}</div>
         </div>
-        ${r.cycleLabel ? '<div class="card-row-meta">Cycle: '+r.cycleLabel+'</div>' : ''}
-        ${r.dueLabel ? '<div class="card-row-due '+(r.dueSoon?'soon':'normal')+'">'+r.dueLabel+'</div>' : ''}
         <div class="card-row-entries">${r.count} ${r.count===1?'entry':'entries'}${r.placeholder ? ' · * billing cycle is a placeholder, update when you have real dates' : ''}</div>
       `;
       listEl.appendChild(div);
     });
   }
+
+  /* ============ RECORD A RE-PAYMENT ============ */
+  let repaymentCardId = null;
+  function openRepaymentModal(cardId){
+    const c = cardById(cardId);
+    if(!c) return;
+    repaymentCardId = cardId;
+    document.getElementById('repaymentModalTitle').textContent = 'Record a re-payment — ' + c.name;
+    document.getElementById('rp-date').value = todayStr();
+    const cardExpensesForCard = expenses.filter(e=>e.mode==='Credit Card' && e.card===cardId);
+    const cardPaymentsForCard = cardPayments.filter(p=>p.cardId===cardId);
+    const { outstanding } = computeCardOutstanding(c, cardExpensesForCard, cardPaymentsForCard, new Date());
+    document.getElementById('rp-amount').value = outstanding > 0 ? outstanding.toFixed(2) : '';
+    document.getElementById('rp-remarks').value = '';
+    document.getElementById('repaymentBackdrop').classList.add('open');
+  }
+  document.getElementById('closeRepaymentModal').addEventListener('click', ()=> document.getElementById('repaymentBackdrop').classList.remove('open'));
+  document.getElementById('repaymentBackdrop').addEventListener('click', (ev)=>{ if(ev.target.id==='repaymentBackdrop') ev.currentTarget.classList.remove('open'); });
+
+  document.getElementById('saveRepaymentBtn').addEventListener('click', ()=>{
+    const amount = parseFloat(document.getElementById('rp-amount').value);
+    if(isNaN(amount) || amount <= 0){ toast('Enter a valid amount'); return; }
+    const payment = {
+      id: uid(), cardId: repaymentCardId,
+      date: document.getElementById('rp-date').value || todayStr(),
+      amount, paidBy: document.getElementById('rp-paidby').value,
+      remarks: document.getElementById('rp-remarks').value.trim(),
+      createdAt: Date.now()
+    };
+    cardPayments.push(payment);
+    cacheAll();
+    document.getElementById('repaymentBackdrop').classList.remove('open');
+    toast('Re-payment recorded ✓');
+    renderCardsTab();
+    syncWrite('addCardPayment', payment);
+  });
 
   /* ============ MANAGE CARDS ============ */
   let editingCardId = null;
