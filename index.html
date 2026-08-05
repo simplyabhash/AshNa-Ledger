@@ -1219,7 +1219,7 @@
     return { id:String(e.id), date:String(e.date).slice(0,10), category:e.category, amount:parseFloat(e.amount)||0,
       paidBy:e.paidBy, mode:e.mode, remarks:e.remarks||'', source:e.source||'manual', createdAt: Number(e.createdAt)||Date.now(),
       isRefund: (e.isRefund === true || e.isRefund === 'true' || e.isRefund === 'TRUE'), refundOf: e.refundOf ? String(e.refundOf) : '',
-      card: e.card ? String(e.card) : '' };
+      card: e.card ? String(e.card) : '', templateId: e.templateId ? String(e.templateId) : '', postedMonthKey: e.postedMonthKey ? String(e.postedMonthKey) : '' };
   }
   function normalizeTemplate(t){
     return { id:String(t.id), name:t.name, category:t.category, amount:parseFloat(t.amount)||0, paidBy:t.paidBy, mode:t.mode, card: t.card ? String(t.card) : '' };
@@ -1599,6 +1599,15 @@
   /* ============ RECURRING ============ */
   function currentMonthKey(){ return todayStr().slice(0,7); }
 
+  // When a recurring-sourced expense is deleted, its template should become "pending" again for that month
+  function unpostForDeletedEntry(e){
+    if(e.source !== 'recurring' || !e.templateId || !e.postedMonthKey) return null;
+    const before = posted.length;
+    posted = posted.filter(p => !(p.templateId === e.templateId && p.monthKey === e.postedMonthKey));
+    if(posted.length === before) return null; // nothing matched, e.g. legacy entry without linkage
+    return { templateId: e.templateId, monthKey: e.postedMonthKey };
+  }
+
   function reviewMonthRange(){
     // 12 months back through 3 months forward from today, so old missed bills and future planning both work
     const now = new Date();
@@ -1710,7 +1719,7 @@
       const paidByOverride = paidBySelect ? paidBySelect.value : null;
       const tpl = templates.find(t=>t.id===id);
       if(!tpl || isNaN(amount) || amount <= 0) return;
-      const entry = {id:uid(), date: postDate, amount, category:tpl.category, paidBy: paidByOverride || tpl.paidBy, mode:tpl.mode, remarks:tpl.name, source:'recurring', createdAt: Date.now(), card: tpl.card || ''};
+      const entry = {id:uid(), date: postDate, amount, category:tpl.category, paidBy: paidByOverride || tpl.paidBy, mode:tpl.mode, remarks:tpl.name, source:'recurring', createdAt: Date.now(), card: tpl.card || '', templateId: id, postedMonthKey: mk};
       expenses.push(entry);
       newEntries.push(entry);
       const postedRecord = {templateId:id, monthKey:mk};
@@ -1993,15 +2002,18 @@
     if(selectedHistoryIds.size === 0){ toast('Nothing selected'); return; }
     if(!confirm('Delete ' + selectedHistoryIds.size + ' selected entr' + (selectedHistoryIds.size===1?'y':'ies') + '? This cannot be undone.')) return;
     const idsToDelete = Array.from(selectedHistoryIds);
+    const entriesToDelete = expenses.filter(e=>selectedHistoryIds.has(e.id));
     expenses = expenses.filter(e=>!selectedHistoryIds.has(e.id));
+    const unpostedRecords = entriesToDelete.map(e=>unpostForDeletedEntry(e)).filter(Boolean);
     cacheAll();
     selectedHistoryIds.clear();
     historySelectMode = false;
     document.getElementById('selectModeBtn').textContent = 'Select';
-    toast(idsToDelete.length + ' entr' + (idsToDelete.length===1?'y':'ies') + ' deleted');
-    renderHistory(); renderDashboard();
+    toast(idsToDelete.length + ' entr' + (idsToDelete.length===1?'y':'ies') + ' deleted' + (unpostedRecords.length ? ' — ' + unpostedRecords.length + ' recurring bill' + (unpostedRecords.length===1?'':'s') + ' available to post again' : ''));
+    renderHistory(); renderDashboard(); renderRecurring();
     (async ()=>{
       for(const id of idsToDelete){ await syncWrite('deleteExpense', {id}); }
+      for(const rec of unpostedRecords){ await syncWrite('deletePosted', rec); }
     })();
   });
 
@@ -2074,12 +2086,17 @@
   document.getElementById('deleteEntryBtn').addEventListener('click', ()=>{
     if(!confirm('Delete this entry?')) return;
     const idToDelete = editingId;
+    const deletedEntry = expenses.find(x=>x.id===idToDelete);
     expenses = expenses.filter(x=>x.id!==idToDelete);
+    const unposted = deletedEntry ? unpostForDeletedEntry(deletedEntry) : null;
     cacheAll();
     document.getElementById('editBackdrop').classList.remove('open');
-    toast('Entry deleted');
-    renderHistory(); renderDashboard();
-    syncWrite('deleteExpense', {id: idToDelete});
+    toast(unposted ? 'Entry deleted — bill available to post again' : 'Entry deleted');
+    renderHistory(); renderDashboard(); renderRecurring();
+    (async ()=>{
+      await syncWrite('deleteExpense', {id: idToDelete});
+      if(unposted) await syncWrite('deletePosted', unposted);
+    })();
   });
 
   /* ============ DASHBOARD ============ */
