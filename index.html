@@ -242,6 +242,12 @@
     margin-top:5px;
   }
   .entry.is-refund{ background:var(--danger-tint); border-color:#eccdd0; }
+  .trip-badge{
+    display:inline-flex; align-items:center; gap:4px;
+    background:var(--teal-tint); color:var(--teal-dark);
+    font-size:11px; font-weight:600; padding:2px 8px; border-radius:999px;
+    margin-top:5px; margin-right:6px;
+  }
   .entry-amt.negative{ color:var(--danger); }
 
   .card-select-field{ background:var(--teal-tint); border-radius:10px; padding:12px; }
@@ -706,6 +712,10 @@
             <option value="expense">Expenses only</option>
             <option value="refund">Refunds only</option>
           </select>
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label>Trip</label>
+          <select id="filterTrip"><option value="">All</option></select>
         </div>
       </div>
       <div id="historySummary" class="history-summary"></div>
@@ -2160,12 +2170,19 @@
     const prevMode = modeSel.value;
     modeSel.innerHTML = '<option value="">All</option>' + PAYMENT_MODES.map(m=>'<option value="'+m+'">'+m+'</option>').join('');
     if(prevMode) modeSel.value = prevMode;
+
+    const tripSel = document.getElementById('filterTrip');
+    const prevTrip = tripSel.value;
+    const sortedTrips = trips.slice().sort((a,b)=> (b.startDate||'').localeCompare(a.startDate||''));
+    tripSel.innerHTML = '<option value="">All</option><option value="__none__">No trip tagged</option>' +
+      sortedTrips.map(t=>'<option value="'+t.id+'">'+t.name+'</option>').join('');
+    if(prevTrip) tripSel.value = prevTrip;
   }
 
   document.getElementById('filterToggle').addEventListener('click', ()=>{
     document.getElementById('filterPanel').classList.toggle('open');
   });
-  ['searchBox','filterMonth','filterPaidBy','filterCategory','filterMode','filterType','filterFrom','filterTo'].forEach(id=>{
+  ['searchBox','filterMonth','filterPaidBy','filterCategory','filterMode','filterType','filterFrom','filterTo','filterTrip'].forEach(id=>{
     document.getElementById(id).addEventListener('input', renderHistory);
     document.getElementById(id).addEventListener('change', renderHistory);
   });
@@ -2192,6 +2209,7 @@
     const fType = document.getElementById('filterType').value;
     const fFrom = document.getElementById('filterFrom').value;
     const fTo = document.getElementById('filterTo').value;
+    const fTrip = document.getElementById('filterTrip').value;
 
     let list = expenses.slice().sort((a,b)=> b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
     if(fMonth) list = list.filter(e=>monthKey(e.date) === fMonth);
@@ -2202,6 +2220,8 @@
     if(fMode) list = list.filter(e=>e.mode === fMode);
     if(fType === 'expense') list = list.filter(e=>!e.isRefund);
     if(fType === 'refund') list = list.filter(e=>e.isRefund);
+    if(fTrip === '__none__') list = list.filter(e=>!e.tripId);
+    else if(fTrip) list = list.filter(e=>e.tripId === fTrip);
     if(q) list = list.filter(e=> (e.category+' '+(e.remarks||'')+' '+e.source).toLowerCase().includes(q));
 
     document.getElementById('entryCount').textContent = expenses.length + ' entries';
@@ -2242,6 +2262,12 @@
         ? '<input type="checkbox" class="entry-select-check" data-select-id="'+e.id+'" '+(selectedHistoryIds.has(e.id)?'checked':'')+'>'
         : '';
 
+      let tripBadgeHtml = '';
+      if(e.tripId){
+        const t = tripById(e.tripId);
+        tripBadgeHtml = '<div class="trip-badge">✈️ ' + (t ? t.name : 'Trip') + '</div>';
+      }
+
       div.innerHTML = `
         ${checkboxHtml}
         <div class="entry-left">
@@ -2249,6 +2275,7 @@
           <div class="entry-meta">${new Date(e.date+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})} · <span style="color:${e.paidBy==='Abhash'?'var(--abhash)':'var(--meghna)'}">${e.paidBy}</span></div>
           ${e.remarks ? '<div class="entry-remark">'+e.remarks+'</div>' : ''}
           ${badgeHtml}
+          ${tripBadgeHtml}
         </div>
         <div class="entry-right">
           <div class="entry-amt num${e.amount<0?' negative':''}">${fmtMoney(e.amount)}</div>
@@ -2966,10 +2993,11 @@
     toast('Fetching latest data…');
     await refreshFromServer(true);
     if(expenses.length === 0){ toast('Nothing to export yet'); return; }
-    const rows = [["Date","Category","Amount","Paid By","Payment Mode","Card","Remarks","Source","Is Refund","Refund Of"]];
+    const rows = [["Date","Category","Amount","Paid By","Payment Mode","Card","Remarks","Source","Is Refund","Refund Of","Trip"]];
     expenses.slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(e=>{
       const cardName = e.card && cardById(e.card) ? cardById(e.card).name : '';
-      rows.push([e.date, e.category, e.amount, e.paidBy, e.mode, cardName, (e.remarks||'').replace(/"/g,"'"), e.source, e.isRefund ? 'Yes' : '', e.refundOf || '']);
+      const tripName = e.tripId && tripById(e.tripId) ? tripById(e.tripId).name : '';
+      rows.push([e.date, e.category, e.amount, e.paidBy, e.mode, cardName, (e.remarks||'').replace(/"/g,"'"), e.source, e.isRefund ? 'Yes' : '', e.refundOf || '', tripName]);
     });
     const csv = rows.map(r=> r.map(cell=>{
       const s = String(cell);
