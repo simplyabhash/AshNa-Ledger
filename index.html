@@ -225,6 +225,10 @@
   }
   .refund-check-label input{ width:18px; height:18px; accent-color:var(--danger); }
   .refund-link-field{ background:var(--danger-tint); border-radius:10px; padding:12px; }
+  .trip-pick-field{ background:var(--teal-tint); border-radius:10px; padding:12px; }
+  .trip-pick-field label{ color:var(--teal-dark); }
+  .trip-add-inline{ margin-top:10px; padding-top:10px; border-top:1px solid rgba(0,0,0,0.08); }
+  .trip-add-inline-link{ font-size:12.5px; color:var(--teal-dark); font-weight:600; text-decoration:underline; cursor:pointer; background:none; border:none; padding:0; }
   .refund-link-field label{ color:var(--danger); }
   #refundSelectedSummary{
     margin-top:8px; background:var(--surface); border:1px solid var(--line);
@@ -497,6 +501,7 @@
       <button id="syncNowBtn" class="sync-link">Sync now</button>
       <button id="themeBtn" class="sync-link" style="margin-left:auto;">🎨 Theme</button>
       <button id="categoriesBtn" class="sync-link">🏷️ Categories</button>
+      <button id="tripsBtn" class="sync-link">✈️ Trips</button>
     </div>
   </header>
 
@@ -562,6 +567,29 @@
             <input type="text" id="f-refund-search" placeholder="Search by category, remarks, or amount…" autocomplete="off">
             <div class="combo-list" id="f-refund-search-list"></div>
             <div id="refundSelectedSummary" style="display:none;"></div>
+          </div>
+          <div class="refund-toggle-row" id="f-triptag-row" style="margin-top:-6px;">
+            <label class="refund-check-label">
+              <input type="checkbox" id="f-is-trip">
+              <span>This is part of a trip</span>
+            </label>
+          </div>
+          <div class="field trip-pick-field" id="f-trip-field" style="display:none;">
+            <label>Which trip?</label>
+            <input type="text" id="f-trip-search" placeholder="Search trips…" autocomplete="off">
+            <div class="combo-list" id="f-trip-search-list"></div>
+            <div id="f-tripSelectedSummary" style="display:none;"></div>
+            <div class="trip-add-inline">
+              <button type="button" class="trip-add-inline-link" id="f-showNewTrip">+ Can't find it — add a new trip</button>
+              <div id="f-newTripForm" style="display:none; margin-top:10px;">
+                <input type="text" id="f-newtrip-name" placeholder="Trip name" style="margin-bottom:8px;">
+                <div class="row-2" style="margin-bottom:8px;">
+                  <input type="date" id="f-newtrip-start">
+                  <input type="date" id="f-newtrip-end">
+                </div>
+                <button type="button" class="btn-primary" id="f-createTripBtn" style="margin-top:0;">Create &amp; select</button>
+              </div>
+            </div>
           </div>
           <button type="submit" class="btn-primary" id="addSubmitBtn">Add entry</button>
         </form>
@@ -697,6 +725,7 @@
         <div class="field" style="margin-bottom:0;">
           <label>Scope</label>
           <select id="dashMonth"></select>
+          <div id="dashScopeSubtext" style="display:none; font-size:11.5px; color:var(--muted); margin-top:6px;"></div>
         </div>
         <div class="row-2 custom-range-row" id="dashCustomRange" style="display:none; margin-top:12px; margin-bottom:0;">
           <div class="field" style="margin-bottom:0;">
@@ -737,7 +766,7 @@
         <div class="chart-wrap" style="height:190px;"><canvas id="chartMode"></canvas></div>
       </div>
       <div class="card">
-        <h2 class="section-title">6-month trend</h2>
+        <h2 class="section-title" id="chartTrendTitle">6-month trend</h2>
         <div class="chart-wrap" style="height:200px;"><canvas id="chartTrend"></canvas></div>
       </div>
     </section>
@@ -872,6 +901,29 @@
           <span>This is a credit card re-payment (converts this entry out of your expense totals)</span>
         </label>
       </div>
+      <div class="refund-toggle-row">
+        <label class="refund-check-label">
+          <input type="checkbox" id="e-is-trip">
+          <span>This is part of a trip</span>
+        </label>
+      </div>
+      <div class="field trip-pick-field" id="e-trip-field" style="display:none;">
+        <label>Which trip?</label>
+        <input type="text" id="e-trip-search" placeholder="Search trips…" autocomplete="off">
+        <div class="combo-list" id="e-trip-search-list"></div>
+        <div id="e-tripSelectedSummary" style="display:none;"></div>
+        <div class="trip-add-inline">
+          <button type="button" class="trip-add-inline-link" id="e-showNewTrip">+ Can't find it — add a new trip</button>
+          <div id="e-newTripForm" style="display:none; margin-top:10px;">
+            <input type="text" id="e-newtrip-name" placeholder="Trip name" style="margin-bottom:8px;">
+            <div class="row-2" style="margin-bottom:8px;">
+              <input type="date" id="e-newtrip-start">
+              <input type="date" id="e-newtrip-end">
+            </div>
+            <button type="button" class="btn-primary" id="e-createTripBtn" style="margin-top:0;">Create &amp; select</button>
+          </div>
+        </div>
+      </div>
       <button class="btn-primary" id="saveEditBtn">Save changes</button>
       <button class="btn-secondary" id="deleteEntryBtn" style="margin-top:10px; color:var(--danger); border-color:var(--danger-tint);">Delete entry</button>
     </div>
@@ -900,6 +952,36 @@
       <div class="add-row">
         <input type="text" id="newCategoryInput" class="input" placeholder="New category name…">
         <button class="btn-primary" id="addCategoryBtn" style="width:auto; margin-top:0;">Add</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Manage Trips modal -->
+  <div class="modal-backdrop" id="tripsBackdrop">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Manage Trips</h3>
+        <button class="close-x" id="closeTripsModal">&times;</button>
+      </div>
+      <div class="hint-text">Add trips here, or create one on the fly while logging an expense. Changes sync to every device automatically.</div>
+      <div id="tripsListBox"></div>
+      <button class="add-rec-toggle" id="showAddTrip">+ Add a trip</button>
+      <div id="tripFormWrap" style="display:none; margin-top:12px; border-top:1px solid var(--line); padding-top:14px;">
+        <div class="field">
+          <label>Trip name</label>
+          <input type="text" id="trip-name" placeholder="e.g. Goa 2026">
+        </div>
+        <div class="row-2">
+          <div class="field">
+            <label>Start date</label>
+            <input type="date" id="trip-start">
+          </div>
+          <div class="field">
+            <label>End date</label>
+            <input type="date" id="trip-end">
+          </div>
+        </div>
+        <button class="btn-primary" id="saveTripBtn" type="button">Save trip</button>
       </div>
     </div>
   </div>
@@ -1138,6 +1220,101 @@
     if(ev.key === 'Enter'){ ev.preventDefault(); document.getElementById('addCategoryBtn').click(); }
   });
 
+  /* ============ MANAGE TRIPS ============ */
+  let editingTripId = null;
+
+  function renderTripsList(){
+    const wrap = document.getElementById('tripsListBox');
+    if(trips.length === 0){ wrap.innerHTML = '<div style="color:var(--muted); font-size:13px;">No trips yet.</div>'; }
+    else {
+      wrap.innerHTML = '';
+      trips.slice().sort((a,b)=> (b.startDate||'').localeCompare(a.startDate||'')).forEach(t=>{
+        const row = document.createElement('div');
+        row.className = 'rec-manage-item';
+        row.innerHTML = `
+          <div style="min-width:0;">
+            <div class="rec-name">${t.name}</div>
+            <div class="rec-sub">${fmtTripRange(t) || 'No dates set'}</div>
+          </div>
+          <div style="display:flex; gap:12px; flex-shrink:0;">
+            <button class="icon-btn" data-edit-trip="${t.id}">Edit</button>
+            <button class="icon-btn danger" data-del-trip="${t.id}">Remove</button>
+          </div>
+        `;
+        wrap.appendChild(row);
+      });
+      wrap.querySelectorAll('[data-edit-trip]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const t = tripById(btn.dataset.editTrip);
+          if(!t) return;
+          editingTripId = t.id;
+          document.getElementById('trip-name').value = t.name;
+          document.getElementById('trip-start').value = t.startDate;
+          document.getElementById('trip-end').value = t.endDate;
+          document.getElementById('saveTripBtn').textContent = 'Save changes';
+          document.getElementById('tripFormWrap').style.display = 'block';
+        });
+      });
+      wrap.querySelectorAll('[data-del-trip]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          const t = tripById(btn.dataset.delTrip);
+          const usageCount = expenses.filter(e=>e.tripId===btn.dataset.delTrip).length;
+          const warning = usageCount > 0
+            ? `${usageCount} existing ${usageCount===1?'entry is':'entries are'} tagged to "${t?t.name:'this trip'}". Removing it only takes it off the picker list — those entries keep their trip tag as-is, just without a visible name. Continue?`
+            : `Remove "${t?t.name:'this trip'}"?`;
+          if(!confirm(warning)) return;
+          trips = trips.filter(x=>x.id!==btn.dataset.delTrip);
+          cacheAll();
+          renderTripsList();
+          toast('Trip removed ✓');
+          syncWrite('setTrips', trips);
+        });
+      });
+    }
+  }
+
+  document.getElementById('tripsBtn').addEventListener('click', ()=>{
+    renderTripsList();
+    document.getElementById('tripsBackdrop').classList.add('open');
+  });
+  document.getElementById('closeTripsModal').addEventListener('click', ()=> document.getElementById('tripsBackdrop').classList.remove('open'));
+  document.getElementById('tripsBackdrop').addEventListener('click', (ev)=>{ if(ev.target.id==='tripsBackdrop') ev.currentTarget.classList.remove('open'); });
+
+  document.getElementById('showAddTrip').addEventListener('click', ()=>{
+    const wrap = document.getElementById('tripFormWrap');
+    if(wrap.style.display === 'none'){
+      editingTripId = null;
+      document.getElementById('trip-name').value = '';
+      document.getElementById('trip-start').value = '';
+      document.getElementById('trip-end').value = '';
+      document.getElementById('saveTripBtn').textContent = 'Save trip';
+      wrap.style.display = 'block';
+    } else {
+      wrap.style.display = 'none';
+    }
+  });
+
+  document.getElementById('saveTripBtn').addEventListener('click', ()=>{
+    const name = document.getElementById('trip-name').value.trim();
+    const startDate = document.getElementById('trip-start').value;
+    const endDate = document.getElementById('trip-end').value;
+    if(!name){ toast('Enter a trip name'); return; }
+    if(editingTripId){
+      const t = tripById(editingTripId);
+      if(t){ t.name = name; t.startDate = startDate; t.endDate = endDate; }
+      toast('Trip updated ✓');
+    } else {
+      trips.push({ id: 'trip_' + uid(), name, startDate, endDate });
+      toast('Trip added ✓');
+    }
+    cacheAll();
+    refreshAllTripSelects();
+    document.getElementById('tripFormWrap').style.display = 'none';
+    editingTripId = null;
+    renderTripsList();
+    syncWrite('setTrips', trips);
+  });
+
   const LS_EXPENSES = "ledger_expenses_v1";
   const LS_TEMPLATES = "ledger_templates_v1";
   const LS_POSTED = "ledger_posted_v1";
@@ -1145,6 +1322,7 @@
   const LS_CATEGORIES = "ledger_categories_v1";
   const LS_CARDS = "ledger_cards_v1";
   const LS_CARDPAYMENTS = "ledger_cardpayments_v1";
+  const LS_TRIPS = "ledger_trips_v1";
 
   const API_URL = "https://script.google.com/macros/s/AKfycbw4KEFO7NL_8LfSls7FRN0bE5TyUf231gZ8PDiy3DGjAlY1u5NUmd-uNuR3XMjsiC_imA/exec";
 
@@ -1178,6 +1356,7 @@
   let cardsNeedBootstrap = false;
   if(cards === null || cards.length === 0){ cards = DEFAULT_CARDS.map(c=>({...c})); cardsNeedBootstrap = true; }
   let cardPayments = loadCache(LS_CARDPAYMENTS, []);
+  let trips = loadCache(LS_TRIPS, []);
 
   function cacheAll(){
     saveCache(LS_EXPENSES, expenses);
@@ -1186,6 +1365,7 @@
     saveCache(LS_CATEGORIES, categories);
     saveCache(LS_CARDS, cards);
     saveCache(LS_CARDPAYMENTS, cardPayments);
+    saveCache(LS_TRIPS, trips);
   }
   function saveQueue(){ saveCache(LS_QUEUE, pendingQueue); }
 
@@ -1219,7 +1399,8 @@
     return { id:String(e.id), date:String(e.date).slice(0,10), category:e.category, amount:parseFloat(e.amount)||0,
       paidBy:e.paidBy, mode:e.mode, remarks:e.remarks||'', source:e.source||'manual', createdAt: Number(e.createdAt)||Date.now(),
       isRefund: (e.isRefund === true || e.isRefund === 'true' || e.isRefund === 'TRUE'), refundOf: e.refundOf ? String(e.refundOf) : '',
-      card: e.card ? String(e.card) : '', templateId: e.templateId ? String(e.templateId) : '', postedMonthKey: e.postedMonthKey ? String(e.postedMonthKey) : '' };
+      card: e.card ? String(e.card) : '', templateId: e.templateId ? String(e.templateId) : '', postedMonthKey: e.postedMonthKey ? String(e.postedMonthKey) : '',
+      tripId: e.tripId ? String(e.tripId) : '' };
   }
   function normalizeTemplate(t){
     return { id:String(t.id), name:t.name, category:t.category, amount:parseFloat(t.amount)||0, paidBy:t.paidBy, mode:t.mode, card: t.card ? String(t.card) : '' };
@@ -1232,6 +1413,15 @@
   }
   function normalizeCardPayment(p){
     return { id:String(p.id), cardId:String(p.cardId), date:String(p.date).slice(0,10), amount:parseFloat(p.amount)||0, paidBy:p.paidBy||'', remarks:p.remarks||'', createdAt:Number(p.createdAt)||Date.now() };
+  }
+  function normalizeTrip(t){
+    return { id:String(t.id), name:t.name, startDate:String(t.startDate||'').slice(0,10), endDate:String(t.endDate||'').slice(0,10) };
+  }
+  function tripById(id){ return trips.find(t=>t.id===id); }
+  function fmtTripRange(t){
+    if(!t.startDate || !t.endDate) return '';
+    const s = new Date(t.startDate+'T00:00:00'), e = new Date(t.endDate+'T00:00:00');
+    return fmtShortDate(s) + ' – ' + fmtShortDate(e);
   }
 
   let isSyncing = false;
@@ -1261,6 +1451,7 @@
         syncWrite('setCards', cards);
       }
       cardPayments = (data.cardPayments||[]).filter(p=>p.id).map(normalizeCardPayment);
+      trips = (data.trips||[]).filter(t=>t.id).map(normalizeTrip);
       refreshAllCardSelects();
       cacheAll();
       setSyncStatus('ok', 'Synced just now');
@@ -1437,6 +1628,101 @@
   wireCardVisibility('t-mode', 't-card-field');
   wireCardVisibilityWithRepayment('e');
 
+  function tripSearchLabel(t){ return t.name + (fmtTripRange(t) ? ' (' + fmtTripRange(t) + ')' : ''); }
+
+  function wireTripPicker(prefix){
+    const checkbox = document.getElementById(prefix+'-is-trip');
+    const field = document.getElementById(prefix+'-trip-field');
+    const searchInput = document.getElementById(prefix+'-trip-search');
+    const searchList = document.getElementById(prefix+'-trip-search-list');
+    const summaryEl = document.getElementById(prefix+'-tripSelectedSummary');
+    const showNewBtn = document.getElementById(prefix+'-showNewTrip');
+    const newForm = document.getElementById(prefix+'-newTripForm');
+    const createBtn = document.getElementById(prefix+'-createTripBtn');
+
+    function setSelectedTripId(id){
+      if(prefix === 'f') selectedTripId_f = id; else selectedTripId_e = id;
+    }
+    function getSelectedTripId(){ return prefix === 'f' ? selectedTripId_f : selectedTripId_e; }
+
+    function showSummaryFor(trip){
+      summaryEl.style.display = 'flex';
+      summaryEl.innerHTML = `<span>Tagged to: ${tripSearchLabel(trip)}</span><span class="change-link" id="${prefix}-changeTrip">Change</span>`;
+      document.getElementById(prefix+'-changeTrip').addEventListener('click', ()=>{
+        setSelectedTripId('');
+        summaryEl.style.display = 'none';
+      });
+    }
+
+    function renderTripResults(filter){
+      const f = (filter||'').trim().toLowerCase();
+      let candidates = f ? trips.filter(t => t.name.toLowerCase().includes(f)) : trips.slice();
+      candidates.sort((a,b)=> (b.startDate||'').localeCompare(a.startDate||''));
+      searchList.innerHTML = '';
+      if(candidates.length === 0){
+        searchList.innerHTML = '<div class="combo-empty">No matching trips. Use "add a new trip" below.</div>';
+      } else {
+        candidates.slice(0,20).forEach(t=>{
+          const div = document.createElement('div');
+          div.className = 'combo-item';
+          div.innerHTML = '<span>' + tripSearchLabel(t) + '</span>';
+          div.addEventListener('mousedown', (ev)=>{
+            ev.preventDefault();
+            setSelectedTripId(t.id);
+            searchInput.value = '';
+            searchList.classList.remove('open');
+            showSummaryFor(t);
+          });
+          searchList.appendChild(div);
+        });
+      }
+      searchList.classList.add('open');
+    }
+    searchInput.addEventListener('focus', ()=>renderTripResults(searchInput.value));
+    searchInput.addEventListener('input', ()=>renderTripResults(searchInput.value));
+    searchInput.addEventListener('blur', ()=> setTimeout(()=>searchList.classList.remove('open'), 150));
+
+    checkbox.addEventListener('change', function(){
+      field.style.display = this.checked ? 'block' : 'none';
+      if(!this.checked){
+        setSelectedTripId('');
+        summaryEl.style.display = 'none';
+        searchInput.value = '';
+        newForm.style.display = 'none';
+      }
+    });
+
+    showNewBtn.addEventListener('click', ()=>{
+      newForm.style.display = newForm.style.display === 'none' ? 'block' : 'none';
+    });
+
+    createBtn.addEventListener('click', ()=>{
+      const name = document.getElementById(prefix+'-newtrip-name').value.trim();
+      const startDate = document.getElementById(prefix+'-newtrip-start').value;
+      const endDate = document.getElementById(prefix+'-newtrip-end').value;
+      if(!name){ toast('Enter a trip name'); return; }
+      const newTrip = { id: 'trip_' + uid(), name, startDate, endDate };
+      trips.push(newTrip);
+      cacheAll();
+      refreshAllTripSelects();
+      setSelectedTripId(newTrip.id);
+      showSummaryFor(newTrip);
+      document.getElementById(prefix+'-newtrip-name').value = '';
+      document.getElementById(prefix+'-newtrip-start').value = '';
+      document.getElementById(prefix+'-newtrip-end').value = '';
+      newForm.style.display = 'none';
+      toast('Trip created & selected ✓');
+      syncWrite('setTrips', trips);
+    });
+  }
+  wireTripPicker('f');
+  wireTripPicker('e');
+
+  function refreshAllTripSelects(){
+    // Trip pickers are search-driven, not <select> dropdowns, so nothing to repopulate —
+    // this exists so Manage Trips can call it uniformly alongside refreshAllCardSelects().
+  }
+
   initCombo(document.getElementById('f-category'), document.getElementById('f-category-list'), ()=>categories);
   initCombo(document.getElementById('t-category'), document.getElementById('t-category-list'), ()=>categories);
   initCombo(document.getElementById('e-category'), document.getElementById('e-category-list'), ()=>categories);
@@ -1461,6 +1747,8 @@
 
   /* ============ ADD EXPENSE ============ */
   let selectedRefundOfId = '';
+  let selectedTripId_f = '';
+  let selectedTripId_e = '';
 
   document.getElementById('f-is-refund').addEventListener('change', function(){
     const linkField = document.getElementById('refundLinkField');
@@ -1575,7 +1863,7 @@
 
     const amount = isRefund ? -Math.abs(rawAmount) : Math.abs(rawAmount);
     const entry = {id:uid(), date, amount, category, paidBy, mode, remarks, source:'manual', createdAt: Date.now(),
-      isRefund, refundOf: isRefund ? selectedRefundOfId : '', card};
+      isRefund, refundOf: isRefund ? selectedRefundOfId : '', card, tripId: selectedTripId_f};
     expenses.push(entry);
     cacheAll();
     toast(isRefund ? 'Refund recorded ✓' : 'Entry added ✓');
@@ -1594,6 +1882,9 @@
     document.getElementById('addSubmitBtn').textContent = 'Add entry';
     document.getElementById('addSubmitBtn').style.background = '';
     selectedRefundOfId = '';
+    document.getElementById('f-trip-field').style.display = 'none';
+    document.getElementById('f-tripSelectedSummary').style.display = 'none';
+    selectedTripId_f = '';
   }
 
   /* ============ RECURRING ============ */
@@ -2035,6 +2326,28 @@
     document.getElementById('e-remarks').value = e.remarks || '';
     document.getElementById('editRefundNotice').style.display = e.isRefund ? 'block' : 'none';
     document.getElementById('e-repayment-row').style.display = e.isRefund ? 'none' : 'block';
+
+    selectedTripId_e = e.tripId || '';
+    const tripCheck = document.getElementById('e-is-trip');
+    const tripField = document.getElementById('e-trip-field');
+    const tripSummary = document.getElementById('e-tripSelectedSummary');
+    document.getElementById('e-newTripForm').style.display = 'none';
+    if(e.tripId && tripById(e.tripId)){
+      tripCheck.checked = true;
+      tripField.style.display = 'block';
+      tripSummary.style.display = 'flex';
+      const t = tripById(e.tripId);
+      tripSummary.innerHTML = `<span>Tagged to: ${tripSearchLabel(t)}</span><span class="change-link" id="e-changeTrip">Change</span>`;
+      document.getElementById('e-changeTrip').addEventListener('click', ()=>{
+        selectedTripId_e = '';
+        tripSummary.style.display = 'none';
+      });
+    } else {
+      tripCheck.checked = false;
+      tripField.style.display = 'none';
+      tripSummary.style.display = 'none';
+    }
+
     document.getElementById('editBackdrop').classList.add('open');
   }
   document.getElementById('closeModal').addEventListener('click', ()=> document.getElementById('editBackdrop').classList.remove('open'));
@@ -2077,6 +2390,7 @@
     e.mode = document.getElementById('e-mode').value;
     e.card = (e.mode === 'Credit Card') ? document.getElementById('e-card').value : '';
     e.remarks = document.getElementById('e-remarks').value.trim();
+    e.tripId = document.getElementById('e-is-trip').checked ? selectedTripId_e : '';
     cacheAll();
     document.getElementById('editBackdrop').classList.remove('open');
     toast('Entry updated ✓');
@@ -2106,12 +2420,21 @@
     const sel = document.getElementById('dashMonth');
     const prev = sel.value;
     const months = distinctMonths();
-    sel.innerHTML = '<option value="all">All time</option>' + months.map(mk=>'<option value="'+mk+'">'+fmtMonthLabel(mk)+'</option>').join('') + '<option value="custom">Custom range…</option>';
-    if(prev && (prev==='all' || prev==='custom' || months.includes(prev))) sel.value = prev;
+    let html = '<option value="all">All time</option>' + months.map(mk=>'<option value="'+mk+'">'+fmtMonthLabel(mk)+'</option>').join('') + '<option value="custom">Custom range…</option>';
+    html += '<option disabled>──────────</option>';
+    html += '<option value="nontrip">Non-trip spend only</option>';
+    html += '<option value="alltrips">All trips (combined)</option>';
+    const sortedTrips = trips.slice().sort((a,b)=> (b.startDate||'').localeCompare(a.startDate||''));
+    sortedTrips.forEach(t=>{
+      html += '<option value="trip_'+t.id+'">✈️ '+t.name+(fmtTripRange(t) ? '  ('+fmtTripRange(t)+')' : '')+'</option>';
+    });
+    sel.innerHTML = html;
+    const validValues = ['all','custom','nontrip','alltrips'].concat(months).concat(sortedTrips.map(t=>'trip_'+t.id));
+    if(prev && validValues.includes(prev)) sel.value = prev;
     else if(months.length) sel.value = months[0];
   }
   document.getElementById('dashMonth').addEventListener('change', function(){
-    document.getElementById('dashCustomRange').style.display = (this.value === 'custom') ? 'grid' : 'none';
+    document.getElementById('dashCustomRange').style.display = (this.value === 'custom' || this.value === 'alltrips') ? 'grid' : 'none';
     renderDashboard();
   });
   document.getElementById('dashRangeFrom').addEventListener('change', renderDashboard);
@@ -2120,8 +2443,13 @@
   function renderDashboard(){
     populateDashMonthSelect();
     const scope = document.getElementById('dashMonth').value;
-    document.getElementById('dashCustomRange').style.display = (scope === 'custom') ? 'grid' : 'none';
+    document.getElementById('dashCustomRange').style.display = (scope === 'custom' || scope === 'alltrips') ? 'grid' : 'none';
+
+    const subtextEl = document.getElementById('dashScopeSubtext');
+    subtextEl.style.display = 'none';
+
     let scoped;
+    let currentTrip = null;
     if(scope === 'all'){
       scoped = expenses.slice();
     } else if(scope === 'custom'){
@@ -2132,6 +2460,25 @@
         if(toVal && e.date > toVal) return false;
         return true;
       });
+    } else if(scope === 'nontrip'){
+      scoped = expenses.filter(e=>!e.tripId);
+    } else if(scope === 'alltrips'){
+      const fromVal = document.getElementById('dashRangeFrom').value;
+      const toVal = document.getElementById('dashRangeTo').value;
+      scoped = expenses.filter(e=>{
+        if(!e.tripId) return false;
+        if(fromVal && e.date < fromVal) return false;
+        if(toVal && e.date > toVal) return false;
+        return true;
+      });
+    } else if(scope.startsWith('trip_')){
+      const tripId = scope.slice(5);
+      currentTrip = tripById(tripId);
+      scoped = expenses.filter(e=>e.tripId===tripId);
+      if(currentTrip && fmtTripRange(currentTrip)){
+        subtextEl.style.display = 'block';
+        subtextEl.textContent = fmtTripRange(currentTrip);
+      }
     } else {
       scoped = expenses.filter(e=>monthKey(e.date)===scope);
     }
@@ -2218,31 +2565,58 @@
       chartFallback('chartMode', 'Charts need an internet connection to load.');
     }
 
-    // 6 month trend (independent of scope selector)
-    const now = new Date();
-    const monthsBack = [];
-    for(let i=5;i>=0;i--){
-      const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
-      monthsBack.push(d.toISOString().slice(0,7));
+    // Third chart: swaps meaning depending on scope — 6-month trend normally,
+    // "spend by trip" when viewing all trips combined, or a day-by-day breakdown within one trip.
+    const trendTitleEl = document.getElementById('chartTrendTitle');
+    let trendLabels, trendDataA, trendDataB, trendLabelA, trendLabelB, trendTitle;
+
+    if(scope === 'alltrips'){
+      trendTitle = 'Spend by trip';
+      const byTrip = {};
+      scoped.forEach(e=>{ byTrip[e.tripId] = (byTrip[e.tripId]||0) + e.amount; });
+      const entries = Object.entries(byTrip).sort((a,b)=>b[1]-a[1]);
+      trendLabels = entries.map(([tid])=> { const t = tripById(tid); return t ? t.name : 'Unknown trip'; });
+      trendDataA = entries.map(([,v])=>v);
+      trendDataB = null; trendLabelA = 'Spend'; trendLabelB = null;
+    } else if(scope.startsWith('trip_') && currentTrip && currentTrip.startDate && currentTrip.endDate){
+      trendTitle = 'Day-by-day spend';
+      const days = [];
+      let d = new Date(currentTrip.startDate+'T00:00:00');
+      const endD = new Date(currentTrip.endDate+'T00:00:00');
+      while(d <= endD && days.length < 60){
+        days.push(d.toISOString().slice(0,10));
+        d = new Date(d.getFullYear(), d.getMonth(), d.getDate()+1);
+      }
+      trendLabels = days.map(dt=> new Date(dt+'T00:00:00').toLocaleDateString('en-IN',{day:'2-digit',month:'short'}));
+      trendDataA = days.map(dt=> scoped.filter(e=>e.date===dt && e.paidBy==='Abhash').reduce((s,e)=>s+e.amount,0));
+      trendDataB = days.map(dt=> scoped.filter(e=>e.date===dt && e.paidBy==='Meghna').reduce((s,e)=>s+e.amount,0));
+      trendLabelA = 'Abhash'; trendLabelB = 'Meghna';
+    } else {
+      trendTitle = '6-month trend';
+      const now = new Date();
+      const monthsBack = [];
+      for(let i=5;i>=0;i--){
+        const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
+        monthsBack.push(d.toISOString().slice(0,7));
+      }
+      trendLabels = monthsBack.map(mk=>fmtMonthLabel(mk).split(' ')[0].slice(0,3));
+      trendDataA = monthsBack.map(mk=> expenses.filter(e=>monthKey(e.date)===mk && e.paidBy==='Abhash').reduce((s,e)=>s+e.amount,0));
+      trendDataB = monthsBack.map(mk=> expenses.filter(e=>monthKey(e.date)===mk && e.paidBy==='Meghna').reduce((s,e)=>s+e.amount,0));
+      trendLabelA = 'Abhash'; trendLabelB = 'Meghna';
     }
-    const trendAbhash = monthsBack.map(mk=> expenses.filter(e=>monthKey(e.date)===mk && e.paidBy==='Abhash').reduce((s,e)=>s+e.amount,0));
-    const trendMeghna = monthsBack.map(mk=> expenses.filter(e=>monthKey(e.date)===mk && e.paidBy==='Meghna').reduce((s,e)=>s+e.amount,0));
+    trendTitleEl.textContent = trendTitle;
 
     if(chartsReady){
       try{
         clearFallback('chartTrend');
         if(chartTrend) chartTrend.destroy();
+        const datasets = [{ label:trendLabelA, data:trendDataA, backgroundColor:cssVar('--abhash'), borderRadius:5, stack:'s' }];
+        if(trendDataB) datasets.push({ label:trendLabelB, data:trendDataB, backgroundColor:cssVar('--meghna'), borderRadius:5, stack:'s' });
         chartTrend = new Chart(document.getElementById('chartTrend'), {
           type:'bar',
-          data:{
-            labels: monthsBack.map(mk=>fmtMonthLabel(mk).split(' ')[0].slice(0,3)),
-            datasets:[
-              { label:'Abhash', data:trendAbhash, backgroundColor:cssVar('--abhash'), borderRadius:5, stack:'s' },
-              { label:'Meghna', data:trendMeghna, backgroundColor:cssVar('--meghna'), borderRadius:5, stack:'s' }
-            ]
-          },
+          data:{ labels: trendLabels, datasets },
           options:{ maintainAspectRatio:false,
-            plugins:{ legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:11} } }, tooltip:{callbacks:{label:(c)=>c.dataset.label+': '+fmtMoney(c.raw)}} },
+            plugins:{ legend:{ display: !!trendDataB, position:'bottom', labels:{ boxWidth:10, font:{size:11} } }, tooltip:{callbacks:{label:(c)=>c.dataset.label+': '+fmtMoney(c.raw)}} },
             scales:{ y:{ beginAtZero:true, stacked:true, ticks:{ callback:v=>'₹'+v } }, x:{ stacked:true, grid:{display:false} } } }
         });
       } catch(err){ chartFallback('chartTrend', 'Chart could not draw right now.'); }
